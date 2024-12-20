@@ -3,6 +3,7 @@
 PDFExpress is a Kotlin library designed to render PDF files efficiently in Android applications. It allows for downloading, rendering, and displaying PDFs with enhanced features like fixed page sizes, high-quality rendering, and support for remote URLs.
 
 ---
+[![](https://jitpack.io/v/realjoni17/PDFXpress.svg)](https://jitpack.io/#realjoni17/PDFXpress)
 
 ## Features
 
@@ -28,37 +29,16 @@ Add the following permissions to your `AndroidManifest.xml`:
 
 ## Usage
 
-### Rendering PDFs from Local Files
+### Rendering PDFs from URI
 
 ```kotlin
 @Composable
-fun PDFReaderScreen(fileUri: Uri, context: Context) {
-    val file = File(fileUri.path ?: return)
-    PDFReader(file = file)
-}
-
-@Composable
-fun PDFReader(file: File) {
+fun PDFScreen(fileUri: Uri, onBack: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize()) {
-        val pdfRender = remember {
-            PdfRender(fileDescriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY))
+        TextButton(onClick = onBack) {
+            Text("Back")
         }
-
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
-            items(count = pdfRender.pageCount) { index ->
-                Image(
-                    bitmap = pdfRender.getPageBitmap(index).asImageBitmap(),
-                    contentDescription = "PDF page $index",
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        }
-
-        DisposableEffect(Unit) {
-            onDispose {
-                pdfRender.close()
-            }
-        }
+        PDFReaderScreen(fileUri = fileUri, context = LocalContext.current, onBack = onBack)
     }
 }
 ```
@@ -67,83 +47,38 @@ fun PDFReader(file: File) {
 
 ```kotlin
 @Composable
-fun PDFReaderFromUrl(url: String) {
-    val context = LocalContext.current
-    val localFile = remember { mutableStateOf<File?>(null) }
-    val coroutineScope = rememberCoroutineScope()
-
-    DisposableEffect(url) {
-        val job = coroutineScope.launch {
-            try {
-                val file = downloadPdfFromUrl(context, url)
-                localFile.value = file
-            } catch (e: Exception) {
-                e.printStackTrace()
+fun PdfFromUrl(url: String, onBack: () -> Unit) {
+    Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            PDFReaderFromUrl(url = url, onBack = onBack)
             }
         }
 
-        onDispose {
-            job.cancel()
-        }
-    }
-
-    if (localFile.value != null) {
-        PDFReaderScreen(fileUri = Uri.fromFile(localFile.value!!), context = context)
-    } else {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
-        }
-    }
-}
-
-suspend fun downloadPdfFromUrl(context: Context, url: String): File {
-    return withContext(Dispatchers.IO) {
-        val file = File(context.cacheDir, "temp.pdf")
-        try {
-            val connection = URL(url).openConnection()
-            connection.connectTimeout = 10000
-            connection.readTimeout = 15000
-            connection.getInputStream().use { input ->
-                file.outputStream().use { output ->
-                    input.copyTo(output)
-                }
-            }
-            file
-        } catch (e: Exception) {
-            e.printStackTrace()
-            throw IOException("Failed to download file: ${e.message}")
-        }
-    }
-}
 ```
 
 ---
 
-## Helper Classes
+## Dependencies
 
-### PdfRender
+### Add this to root build.gradle
 
 ```kotlin
-internal class PdfRender(
-    private val fileDescriptor: ParcelFileDescriptor
-) {
-    private val pdfRenderer = PdfRenderer(fileDescriptor)
-    val pageCount get() = pdfRenderer.pageCount
+	dependencyResolutionManagement {
+		repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+		repositories {
+			mavenCentral()
+			maven { url 'https://jitpack.io' }
+		}
+	}
 
-    fun getPageBitmap(index: Int): Bitmap {
-        val page = pdfRenderer.openPage(index)
-        val bitmap = Bitmap.createBitmap(page.width, page.height, Bitmap.Config.ARGB_8888)
-        page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-        page.close()
-        return bitmap
-    }
-
-    fun close() {
-        pdfRenderer.close()
-        fileDescriptor.close()
-    }
-}
 ```
+### Add this to build.gradle(app)
+	dependencies {
+	        implementation 'com.github.realjoni17:PDFXpress:1.0.0'
+	}
 
 ---
 
